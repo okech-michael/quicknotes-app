@@ -1,16 +1,63 @@
 const form = document.querySelector("#note-form");
 const input = document.querySelector("#note-input");
 const categorySelect = document.querySelector("#note-category");
+const searchInput = document.querySelector("#search-input");
 const list = document.querySelector("#notes-list");
 const count = document.querySelector("#note-count");
 const errorMessage = document.querySelector("#error-message");
 
-let notes = [];
+const STORAGE_KEY = "quicknotes-app-notes";
+const categories = ["personal", "work", "study"];
+let notes = loadNotes();
+
+function loadNotes() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) {
+    return [];
+  }
+
+  try {
+    const loadedNotes = JSON.parse(saved);
+    if (
+      !Array.isArray(loadedNotes) ||
+      !loadedNotes.every((note) =>
+        note &&
+        typeof note.id === "string" &&
+        typeof note.text === "string" &&
+        categories.includes(note.category) &&
+        typeof note.createdAt === "string"
+      )
+    ) {
+      throw new TypeError("Saved notes have an invalid format.");
+    }
+
+    return loadedNotes;
+  } catch (error) {
+    console.error("Unable to load saved QuickNotes:", error);
+    return [];
+  }
+}
+
+function saveNotes() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+}
 
 function render() {
   list.replaceChildren();
 
-  notes.forEach((note) => {
+  const searchWords = searchInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const visibleNotes = notes.filter((note) =>
+    searchWords.every((word) => note.text.toLowerCase().includes(word))
+  );
+
+  if (searchWords.length > 0 && visibleNotes.length === 0) {
+    const emptyMessage = document.createElement("li");
+    emptyMessage.classList.add("empty-message");
+    emptyMessage.textContent = "No notes match your search.";
+    list.append(emptyMessage);
+  }
+
+  visibleNotes.forEach((note) => {
     const item = document.createElement("li");
     item.classList.add("note", `category-${note.category}`);
 
@@ -63,11 +110,13 @@ function addNote(text, category) {
     category,
     createdAt: new Date().toLocaleString(),
   });
+  saveNotes();
   render();
 }
 
 function deleteNote(id) {
   notes = notes.filter((note) => note.id !== id);
+  saveNotes();
   render();
 }
 
@@ -92,5 +141,7 @@ form.addEventListener("submit", (event) => {
   input.value = "";
   input.focus();
 });
+
+searchInput.addEventListener("input", render);
 
 render();
